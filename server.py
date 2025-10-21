@@ -8,18 +8,60 @@ LISTENER_LIMIT = 5
 active_clients = [] # List of all currently connected users
 
 # Function to listen for upcoming messages from a client
-def listen_for_messages(client, username):
+# def listen_for_messages(client, username):
 
-    while 1:
+#     while 1:
 
-        message = client.recv(2048).decode('utf-8')
-        if message != '':
+#         message = client.recv(2048).decode('utf-8')
+#         if message != '':
             
-            final_msg = username + '~' + message
-            send_messages_to_all(final_msg)
+#             final_msg = username + '~' + message
+#             send_messages_to_all(final_msg)
 
-        else:
-            print(f"The message send from client {username} is empty")
+#         else:
+#             print(f"The message send from client {username} is empty")
+
+def listen_for_messages(client, username):
+    while True:
+        try:
+            # First receive header
+            header = client.recv(1024).decode('utf-8')
+            if header.startswith("VIDEO~"):
+                _, filename, filesize = header.split("~")
+                filesize = int(filesize)
+
+                # Receive the video file
+                video_data = b''
+                while len(video_data) < filesize:
+                    packet = client.recv(4096)
+                    if not packet:
+                        break
+                    video_data += packet
+
+                # Send video to all clients
+                for user in active_clients:
+                    user_client = user[1]
+                    try:
+                        # Send header first
+                        user_client.sendall(f"VIDEO~{username}~{filename}~{filesize}".encode('utf-8'))
+                        # Then send binary data
+                        user_client.sendall(video_data)
+                    except Exception as e:
+                        print(f"Error sending video to {user[0]}: {e}")
+
+            else:
+                # It's a text message
+                message = header
+                if message != '':
+                    final_msg = username + '~' + message
+                    send_messages_to_all(final_msg)
+                else:
+                    print(f"The message from client {username} is empty")
+
+        except Exception as e:
+            print(f"Error: {e}")
+            break
+
 
 
 # Function to send message to a single client
